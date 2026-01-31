@@ -73,7 +73,7 @@ def process_image(image_path: str, output_path: str = None) -> dict:
     Only respond with the JSON, nothing else."""
 
     analysis_response = client.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-3-flash-preview",
         contents=[
             types.Content(
                 role="user",
