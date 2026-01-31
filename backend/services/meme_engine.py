@@ -1,6 +1,7 @@
 """
 ragebAIt - Nano Banana Meme Engine
 Uses Gemini's native image generation for gen-z sports memes.
+Based on banana.py implementation.
 """
 
 import os
@@ -10,7 +11,6 @@ import json
 import re
 from typing import Optional
 from PIL import Image
-from pathlib import Path
 
 from google import genai
 from google.genai import types
@@ -26,22 +26,16 @@ class NanoBananaMemeEngine:
         self._init_client()
     
     def _init_client(self):
-        """Initialize the Gemini client with Vertex AI."""
+        """Initialize the Gemini client with API key."""
         try:
-            project_id = os.environ.get("GOOGLE_CLOUD_PROJECT")
-            location = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
+            api_key = settings.GEMINI_API_KEY
             
-            if project_id:
-                self.client = genai.Client(vertexai=True, project=project_id, location=location)
-                print(f"[Meme] Nano Banana initialized with Vertex AI (project: {project_id})")
+            if api_key:
+                self.client = genai.Client(api_key=api_key)
+                print(f"[Meme] Nano Banana initialized with API key")
             else:
-                # Try with API key instead
-                api_key = settings.GEMINI_API_KEY
-                if api_key:
-                    self.client = genai.Client(api_key=api_key)
-                    print("[Meme] Nano Banana initialized with API key")
-                else:
-                    print("[Meme] Warning: No credentials found for Nano Banana")
+                print("[Meme] Warning: GEMINI_API_KEY not set. Nano Banana disabled.")
+                self.client = None
         except Exception as e:
             print(f"[Meme] Warning: Could not initialize Nano Banana: {e}")
             self.client = None
@@ -72,7 +66,7 @@ class NanoBananaMemeEngine:
             - style: The meme style used
         """
         if not self.client:
-            raise RuntimeError("Nano Banana client not initialized")
+            raise RuntimeError("Nano Banana client not initialized - GEMINI_API_KEY not set")
         
         # Decode base64 to bytes
         image_bytes = base64.b64decode(frame_base64)
@@ -85,7 +79,8 @@ class NanoBananaMemeEngine:
 
 This is a frame from a sports video. {f'Context: {context}' if context else ''}
 
-Focus on the athletic context, players, teams, game moments, fan reactions, or sports culture shown.
+This is a SPORTS image - focus on the athletic context, players, teams, game moments, 
+fan reactions, or sports culture shown.
 
 Respond in this exact JSON format:
 {{
@@ -100,14 +95,14 @@ STYLE OPTIONS (pick what fits the vibe best):
 - "wholesome": Clean edit with heartwarming twist, feel-good energy. For touching sports moments.
 - "cursed": Unsettling, weird cropping, ominous energy, "this image has an aura". For awkward or creepy frames.
 - "clean": Professional-looking meme, clear text overlays, polished. For moments that speak for themselves.
-- "chaotic": Maximum chaos, multiple meme elements, sensory overload, pure gen-z brain rot energy. For wild game moments.
+- "chaotic": Maximum chaos, multiple elements, sensory overload, gen-z brain rot energy. For wild game moments.
 
 Make it funny, relatable to sports fans, and capture that chaotic gen-z meme energy.
 Use sports references, player/team jokes, and current meme formats.
 Only respond with the JSON, nothing else."""
 
         analysis_response = self.client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-3-flash-preview",
             contents=[
                 types.Content(
                     role="user",
@@ -174,6 +169,7 @@ Only respond with the JSON, nothing else."""
         generated_image = None
         for part in image_response.candidates[0].content.parts:
             if part.inline_data is not None:
+                # The data is already bytes
                 image_data = part.inline_data.data
                 if isinstance(image_data, str):
                     image_data = base64.b64decode(image_data)
