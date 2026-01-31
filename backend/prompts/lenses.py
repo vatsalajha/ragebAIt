@@ -1,10 +1,7 @@
 """
 ragebAIt - Comedy Lens Prompt Templates
 
-Each lens defines:
-- system_prompt: Character and rules for Gemini
-- voice_config: TTS voice settings
-- meme_templates: Default meme text patterns
+Each lens defines a unique comedic perspective for sports commentary.
 """
 
 from dataclasses import dataclass
@@ -12,23 +9,12 @@ from typing import Optional
 
 
 @dataclass
-class VoiceConfig:
-    """TTS voice configuration."""
-    language_code: str
-    name: str
-    speaking_rate: float = 1.0
-    pitch: float = 0.0
-
-
-@dataclass
 class LensConfig:
-    """Full configuration for a comedy lens."""
+    """Configuration for a comedy lens."""
     id: str
     name: str
     emoji: str
     system_prompt: str
-    voice_config: VoiceConfig
-    meme_templates: list[dict]
 
 
 # Base system prompt included with all lenses
@@ -86,19 +72,7 @@ MISINTERPRETATION RULES:
 
 EXAMPLE STYLE:
 "And here we observe the remarkable homo athleticus in its natural habitat. Notice how the alpha specimen signals to its pack with subtle hand gestures... extraordinary. The pursuit of the sacred orb continues with breathtaking intensity."
-""",
-        voice_config=VoiceConfig(
-            language_code="en-GB",
-            name="en-GB-Neural2-B",
-            speaking_rate=0.9,
-            pitch=-2.0
-        ),
-        meme_templates=[
-            {"top": "AND HERE WE OBSERVE", "bottom": "THE HOMO ATHLETICUS"},
-            {"top": "NATURE IS BEAUTIFUL", "bottom": "AND TERRIFYING"},
-            {"top": "THE SPECIMEN", "bottom": "DID NOT SURVIVE"},
-            {"caption": "Narrator: It was at this moment he knew... he'd lost the sacred orb."}
-        ]
+"""
     ),
     
     "heist_movie": LensConfig(
@@ -128,19 +102,7 @@ MISINTERPRETATION RULES:
 
 EXAMPLE STYLE:
 "The Package is in play. Ghost moves left - security's distracted. This is it. The window is closing. Three seconds to extraction point... HE'S IN. Ladies and gentlemen, the Vault has been cracked."
-""",
-        voice_config=VoiceConfig(
-            language_code="en-US",
-            name="en-US-Neural2-J",
-            speaking_rate=1.1,
-            pitch=0.0
-        ),
-        meme_templates=[
-            {"top": "THE PLAN WAS SIMPLE", "bottom": "IT WASN'T"},
-            {"top": "NOBODY", "bottom": "SAW IT COMING"},
-            {"top": "ONE LAST JOB", "bottom": "THEY SAID"},
-            {"caption": "This is where the heist went wrong."}
-        ]
+"""
     ),
     
     "alien_anthropologist": LensConfig(
@@ -171,19 +133,7 @@ MISINTERPRETATION RULES:
 
 EXAMPLE STYLE:
 "Fascinating. The human in red tribal markings has seized the artifact. Others pursue with... remarkable aggression. Why do they want this sphere? *processing* The masses erupt in vocalization. This appears to be significant to them."
-""",
-        voice_config=VoiceConfig(
-            language_code="en-US",
-            name="en-US-Neural2-I",
-            speaking_rate=0.95,
-            pitch=2.0
-        ),
-        meme_templates=[
-            {"top": "HUMANS:", "bottom": "?????"},
-            {"top": "EARTH OBSERVATION LOG", "bottom": "INCONCLUSIVE"},
-            {"top": "FASCINATING", "bottom": "BUT DEEPLY CONCERNING"},
-            {"caption": "Day 47 on Earth: Still don't understand why they chase the sphere."}
-        ]
+"""
     ),
     
     "cooking_show": LensConfig(
@@ -214,19 +164,7 @@ MISINTERPRETATION RULES:
 
 EXAMPLE STYLE:
 "Oh, beautiful! Number 23 is really bringing the heat now. Watch this technique - he's folding in the point guard, a dash of misdirection, and... CHEF'S KISS! That's how you plate a three-pointer, folks! Magnifico!"
-""",
-        voice_config=VoiceConfig(
-            language_code="en-US",
-            name="en-US-Neural2-D",
-            speaking_rate=1.05,
-            pitch=1.0
-        ),
-        meme_templates=[
-            {"top": "CHEF'S KISS", "bottom": "MAGNIFICO"},
-            {"top": "THE SECRET INGREDIENT", "bottom": "WAS CHAOS"},
-            {"top": "PERFECTLY SEASONED", "bottom": "PERFECTLY EXECUTED"},
-            {"caption": "Gordon Ramsay would be proud. Or furious. Probably furious."}
-        ]
+"""
     ),
     
     "shakespearean": LensConfig(
@@ -257,19 +195,7 @@ MISINTERPRETATION RULES:
 
 EXAMPLE STYLE:
 "But soft! What movement through yonder court breaks? 'Tis the warrior in crimson, bearing destiny's orb! To score, or not to score - THAT is the question! *aside* Methinks the defender doth protest too much. HARK! Victory!"
-""",
-        voice_config=VoiceConfig(
-            language_code="en-GB",
-            name="en-GB-Neural2-D",
-            speaking_rate=0.95,
-            pitch=-1.0
-        ),
-        meme_templates=[
-            {"top": "TO YEET", "bottom": "OR NOT TO YEET"},
-            {"top": "ALAS", "bottom": "POOR DEFENSE"},
-            {"top": "FORSOOTH", "bottom": "THAT WAS TRAGIC"},
-            {"caption": "Exit, pursued by a defender."}
-        ]
+"""
     ),
     
     "corporate_meeting": LensConfig(
@@ -300,19 +226,7 @@ MISINTERPRETATION RULES:
 
 EXAMPLE STYLE:
 "Let's circle back to what just happened. Johnson leveraged his core competencies to deliver a cross-functional pass. The ROI on that play? Three points. That's the kind of synergy that really moves the needle for our stakeholders."
-""",
-        voice_config=VoiceConfig(
-            language_code="en-US",
-            name="en-US-Neural2-A",
-            speaking_rate=0.9,
-            pitch=-1.0
-        ),
-        meme_templates=[
-            {"top": "PER MY LAST EMAIL", "bottom": "THAT WAS A FOUL"},
-            {"top": "LET'S CIRCLE BACK", "bottom": "TO THAT DELIVERABLE"},
-            {"top": "SYNERGY", "bottom": "ACHIEVED"},
-            {"caption": "This could have been an email."}
-        ]
+"""
     ),
     
     "true_crime": LensConfig(
@@ -343,19 +257,7 @@ MISINTERPRETATION RULES:
 
 EXAMPLE STYLE:
 "It was 7:42 PM when number 15 made his move. *pause* The question is... did anyone see it coming? Security footage shows the handoff at center court. But here's what they don't want you to know... *dramatic pause* ...he was open. Wide open."
-""",
-        voice_config=VoiceConfig(
-            language_code="en-US",
-            name="en-US-Neural2-C",
-            speaking_rate=0.85,
-            pitch=-2.0
-        ),
-        meme_templates=[
-            {"top": "BUT HERE'S THE THING", "bottom": "NOBODY SAW IT COMING"},
-            {"top": "THE EVIDENCE", "bottom": "DOESN'T LIE"},
-            {"top": "WHAT REALLY HAPPENED", "bottom": "THAT NIGHT"},
-            {"caption": "The case remains... unsolved."}
-        ]
+"""
     ),
 }
 
