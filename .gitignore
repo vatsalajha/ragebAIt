@@ -10,6 +10,12 @@ secret/
 !package-lock.json
 !tsconfig.json
 
+videos/
+*.mp4
+*.mov
+*.avi
+*.webm
+
 # Python
 __pycache__/
 *.py[cod]
