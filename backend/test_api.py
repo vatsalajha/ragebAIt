@@ -37,7 +37,7 @@ async def test_lenses():
 
 
 async def test_meme_templates():
-    """Test meme templates endpoint."""
+    """Test meme templates/styles endpoint."""
     print("\n📋 Testing /api/meme/templates...")
     async with httpx.AsyncClient() as client:
         response = await client.get(f"{BASE_URL}/api/meme/templates")
@@ -45,6 +45,14 @@ async def test_meme_templates():
         data = response.json()
         for template in data.get('templates', []):
             print(f"      - {template['name']}: {template['description']}")
+    
+    print("\n🎨 Testing /api/meme/styles...")
+    async with httpx.AsyncClient() as client:
+        response = await client.get(f"{BASE_URL}/api/meme/styles")
+        print(f"   Status: {response.status_code}")
+        data = response.json()
+        for style in data.get('styles', []):
+            print(f"      - {style['name']}: {style['description'][:50]}...")
         return response.status_code == 200
 
 
@@ -98,48 +106,16 @@ async def test_generate_video(video_path: str, lens: str = "nature_documentary")
             return None
 
 
-async def test_meme_options(video_id: str):
-    """Test meme options endpoint."""
-    print(f"\n🖼️ Testing /api/meme/options for video {video_id}...")
+async def test_meme_generate(video_id: str):
+    """Test Nano Banana meme generation endpoint."""
+    print(f"\n🍌 Testing /api/meme/generate with Nano Banana for video {video_id}...")
+    print("   (This uses Gemini's native image generation - may take 30-60 seconds)")
     
     async with httpx.AsyncClient(timeout=120.0) as client:
-        response = await client.get(
-            f"{BASE_URL}/api/meme/options",
-            params={"video_id": video_id}
-        )
-        
-        print(f"   Status: {response.status_code}")
-        
-        if response.status_code == 200:
-            result = response.json()
-            print(f"   Frame timestamp: {result.get('frame_timestamp')}s")
-            print(f"   Reason: {result.get('frame_reason')}")
-            print(f"   Caption options: {len(result.get('captions', []))}")
-            
-            for cap in result.get('captions', []):
-                if cap.get('top_text'):
-                    print(f"      - {cap['top_text']} / {cap.get('bottom_text', '')}")
-                elif cap.get('caption'):
-                    print(f"      - {cap['caption']}")
-            
-            return result.get('captions', [])
-        else:
-            print(f"   ❌ Error: {response.text}")
-            return None
-
-
-async def test_meme_generate(video_id: str, caption: dict):
-    """Test meme generation endpoint."""
-    print(f"\n😂 Testing /api/meme/generate...")
-    
-    async with httpx.AsyncClient() as client:
         response = await client.post(
             f"{BASE_URL}/api/meme/generate",
             json={
-                "video_id": video_id,
-                "caption": caption,
-                "format": "square",
-                "use_nano_banana": False
+                "video_id": video_id
             }
         )
         
@@ -147,9 +123,12 @@ async def test_meme_generate(video_id: str, caption: dict):
         
         if response.status_code == 200:
             result = response.json()
+            print(f"\n   ✅ Meme generated!")
             print(f"   Meme ID: {result.get('meme_id')}")
             print(f"   Meme URL: {result.get('meme_url')}")
-            print(f"   Size: {result.get('width')}x{result.get('height')}")
+            print(f"   Style: {result.get('style')}")
+            print(f"   Caption: {result.get('caption')}")
+            print(f"   Prompt: {result.get('image_prompt', '')[:100]}...")
             return True
         else:
             print(f"   ❌ Error: {response.text}")
@@ -177,11 +156,8 @@ async def run_all_tests(video_path: str = None):
         video_id = await test_generate_video(video_path, "nature_documentary")
         
         if video_id:
-            # Test meme endpoints
-            captions = await test_meme_options(video_id)
-            
-            if captions:
-                await test_meme_generate(video_id, captions[0])
+            # Test Nano Banana meme generation
+            await test_meme_generate(video_id)
     else:
         print("\n💡 To test video generation, provide a video path:")
         print("   python test_api.py /path/to/sports_video.mp4")

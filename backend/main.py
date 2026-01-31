@@ -55,10 +55,12 @@ async def health_check():
     """
     from backend.services.tts_client import tts_client
     from backend.services.storage_client import storage_client
+    from backend.services.meme_engine import meme_engine
     
     services = {
         "gemini": bool(settings.GEMINI_API_KEY),
         "tts_fal": tts_client.is_available(),  # fal.ai TTS
+        "nano_banana": meme_engine.is_available(),  # Nano Banana meme gen
         "storage": storage_client.is_available(),
     }
     
@@ -89,8 +91,11 @@ async def startup_event():
     from backend.services.tts_client import tts_client
     from backend.services.storage_client import storage_client
     
+    from backend.services.meme_engine import meme_engine
+    
     print(f"   Gemini API: {'✅' if settings.GEMINI_API_KEY else '❌'}")
     print(f"   fal.ai TTS: {'✅' if tts_client.is_available() else '❌'}")
+    print(f"   Nano Banana: {'✅' if meme_engine.is_available() else '❌'}")
     print(f"   Storage: {'✅' if storage_client.is_available() else '❌'}")
     
     print("=" * 50)

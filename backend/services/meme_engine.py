@@ -1,280 +1,207 @@
 """
-ragebAIt - Meme Generation Engine
-Handles meme rendering with text overlays.
+ragebAIt - Nano Banana Meme Engine
+Uses Gemini's native image generation for gen-z sports memes.
 """
 
+import os
 import io
 import base64
+import json
+import re
 from typing import Optional
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 from pathlib import Path
+
+from google import genai
+from google.genai import types
+
 from backend.config import settings
 
-from backend.models.schemas import MemeCaption, MemeFormat
 
-
-class MemeEngine:
-    """Generates memes from frames with text overlays."""
-    
-    # Format sizes
-    FORMATS = {
-        MemeFormat.SQUARE: (1080, 1080),
-        MemeFormat.WIDE: (1200, 675),
-        MemeFormat.TALL: (1080, 1920),
-    }
+class NanoBananaMemeEngine:
+    """Generates gen-z sports memes using Gemini's native image generation (Nano Banana)."""
     
     def __init__(self):
-        self.font_path = self._find_font()
+        self.client = None
+        self._init_client()
     
-    def _find_font(self) -> Optional[str]:
-        """Find a suitable font for meme text."""
-        # Common font paths
-        font_candidates = [
-            "/System/Library/Fonts/Supplemental/Impact.ttf",  # macOS
-            "/usr/share/fonts/truetype/msttcorefonts/Impact.ttf",  # Linux
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",  # Linux alt
-            "C:\\Windows\\Fonts\\Impact.ttf",  # Windows
-        ]
-        
-        for font_path in font_candidates:
-            if Path(font_path).exists():
-                return font_path
-        
-        return None
+    def _init_client(self):
+        """Initialize the Gemini client with Vertex AI."""
+        try:
+            project_id = os.environ.get("GOOGLE_CLOUD_PROJECT")
+            location = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
+            
+            if project_id:
+                self.client = genai.Client(vertexai=True, project=project_id, location=location)
+                print(f"[Meme] Nano Banana initialized with Vertex AI (project: {project_id})")
+            else:
+                # Try with API key instead
+                api_key = settings.GEMINI_API_KEY
+                if api_key:
+                    self.client = genai.Client(api_key=api_key)
+                    print("[Meme] Nano Banana initialized with API key")
+                else:
+                    print("[Meme] Warning: No credentials found for Nano Banana")
+        except Exception as e:
+            print(f"[Meme] Warning: Could not initialize Nano Banana: {e}")
+            self.client = None
     
-    def _get_font(self, size: int) -> ImageFont.FreeTypeFont:
-        """Get font at specified size."""
-        if self.font_path:
-            return ImageFont.truetype(self.font_path, size)
-        else:
-            # Fallback to default font
-            return ImageFont.load_default()
+    def is_available(self) -> bool:
+        """Check if Nano Banana is available."""
+        return self.client is not None
     
-    def render_meme(
+    async def generate_meme(
         self,
         frame_base64: str,
-        caption: MemeCaption,
-        format: MemeFormat = MemeFormat.SQUARE
-    ) -> bytes:
+        context: str = "",
+        output_path: Optional[str] = None
+    ) -> dict:
         """
-        Render a meme from frame and caption.
+        Generate a gen-z sports meme from a video frame.
         
         Args:
-            frame_base64: Base64 encoded image
-            caption: Caption configuration
-            format: Output format
+            frame_base64: Base64 encoded image frame
+            context: Optional context about the video/moment
+            output_path: Optional path to save the generated meme
             
         Returns:
-            PNG image as bytes
+            Dictionary with:
+            - image_base64: Base64 encoded generated meme
+            - caption: Social media caption with hashtags
+            - image_prompt: The prompt used to generate the image
+            - style: The meme style used
         """
-        # Decode frame
-        frame_bytes = base64.b64decode(frame_base64)
-        img = Image.open(io.BytesIO(frame_bytes))
+        if not self.client:
+            raise RuntimeError("Nano Banana client not initialized")
         
-        # Convert to RGB if necessary
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
+        # Decode base64 to bytes
+        image_bytes = base64.b64decode(frame_base64)
+        mime_type = "image/jpeg"
         
-        # Resize to target format
-        target_size = self.FORMATS.get(format, self.FORMATS[MemeFormat.SQUARE])
-        img = self._resize_and_crop(img, target_size)
+        # Step 1: Analyze the image and get meme content from Gemini
+        print("[Meme] Analyzing frame for meme potential...")
         
-        # Apply text based on template
-        if caption.template == "classic":
-            img = self._render_classic_meme(img, caption)
-        elif caption.template == "modern":
-            img = self._render_modern_meme(img, caption)
-        elif caption.template == "quote":
-            img = self._render_quote_meme(img, caption)
-        else:
-            img = self._render_classic_meme(img, caption)
+        analysis_prompt = f"""Analyze this sports image and create gen-z meme content for it.
+
+This is a frame from a sports video. {f'Context: {context}' if context else ''}
+
+Focus on the athletic context, players, teams, game moments, fan reactions, or sports culture shown.
+
+Respond in this exact JSON format:
+{{
+    "image_prompt": "<a detailed prompt for generating/editing the image into a sports meme>",
+    "caption": "<a short, punchy social media caption with relevant hashtags for Twitter/Instagram, max 280 chars>",
+    "style": "<choose one: deepfried, surreal, wholesome, cursed, clean, chaotic>"
+}}
+
+STYLE OPTIONS (pick what fits the vibe best):
+- "deepfried": Oversaturated colors, lens flares, emojis, warped/distorted, ironic humor. Best for absurd or ironic moments.
+- "surreal": Weird edits, unexpected objects, dreamlike, makes no sense but is funny. Good for bizarre plays or reactions.
+- "wholesome": Clean edit with heartwarming twist, feel-good energy. For touching sports moments.
+- "cursed": Unsettling, weird cropping, ominous energy, "this image has an aura". For awkward or creepy frames.
+- "clean": Professional-looking meme, clear text overlays, polished. For moments that speak for themselves.
+- "chaotic": Maximum chaos, multiple meme elements, sensory overload, pure gen-z brain rot energy. For wild game moments.
+
+Make it funny, relatable to sports fans, and capture that chaotic gen-z meme energy.
+Use sports references, player/team jokes, and current meme formats.
+Only respond with the JSON, nothing else."""
+
+        analysis_response = self.client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[
+                        types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+                        types.Part.from_text(text=analysis_prompt)
+                    ]
+                )
+            ]
+        )
         
-        # Export
-        output = io.BytesIO()
-        img.save(output, format='PNG', quality=95)
-        return output.getvalue()
-    
-    def _resize_and_crop(self, img: Image.Image, target_size: tuple) -> Image.Image:
-        """Resize and crop image to target size while maintaining aspect ratio."""
-        target_ratio = target_size[0] / target_size[1]
-        img_ratio = img.width / img.height
+        # Parse the JSON response
+        try:
+            response_text = analysis_response.text.strip()
+            json_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', response_text)
+            if json_match:
+                response_text = json_match.group(1).strip()
+            meme_content = json.loads(response_text)
+        except json.JSONDecodeError:
+            meme_content = {
+                "image_prompt": analysis_response.text.strip(),
+                "caption": "🔥 Sports moment hits different #sports #meme",
+                "style": "chaotic"
+            }
         
-        if img_ratio > target_ratio:
-            # Image is wider - crop sides
-            new_width = int(img.height * target_ratio)
-            left = (img.width - new_width) // 2
-            img = img.crop((left, 0, left + new_width, img.height))
-        else:
-            # Image is taller - crop top/bottom
-            new_height = int(img.width / target_ratio)
-            top = (img.height - new_height) // 2
-            img = img.crop((0, top, img.width, top + new_height))
+        print(f"[Meme] Generated prompt: {meme_content['image_prompt'][:100]}...")
+        print(f"[Meme] Caption: {meme_content['caption']}")
+        print(f"[Meme] Style: {meme_content.get('style', 'clean')}")
         
-        return img.resize(target_size, Image.LANCZOS)
-    
-    def _render_classic_meme(self, img: Image.Image, caption: MemeCaption) -> Image.Image:
-        """Render classic Impact font top/bottom meme."""
-        draw = ImageDraw.Draw(img)
-        width, height = img.size
+        # Step 2: Use Nano Banana (Gemini 3 Pro Image) to generate/edit the image
+        style = meme_content.get('style', 'clean')
         
-        # Calculate font size based on image width
-        font_size = int(width * 0.08)
-        font = self._get_font(font_size)
-        stroke_width = max(2, font_size // 15)
+        style_instructions = {
+            "deepfried": "Deep fry this image with oversaturated colors, add lens flares, random emojis (😂🔥💀), slight warping/distortion, and crusty JPEG artifacts.",
+            "surreal": "Make this surreal and dreamlike - add unexpected objects, weird perspective shifts, or absurd elements that don't belong.",
+            "wholesome": "Keep this clean and heartwarming - subtle edits that enhance the feel-good moment.",
+            "cursed": "Make this cursed - unsettling cropping, ominous lighting, weird blur effects, 'this image has an aura' energy.",
+            "clean": "Create a clean, polished meme - clear composition with any text overlays crisp and readable.",
+            "chaotic": "Maximum chaos - add multiple meme elements, overlay effects, sensory overload, pure gen-z brain rot energy."
+        }
         
-        # Draw top text
-        if caption.top_text:
-            text = caption.top_text.upper()
-            self._draw_text_with_outline(
-                draw, text, font,
-                position=(width // 2, int(height * 0.08)),
-                stroke_width=stroke_width
+        style_prompt = style_instructions.get(style, style_instructions["clean"])
+        edit_prompt = f"{style_prompt} Transform this sports image into a gen-z meme: {meme_content['image_prompt']}"
+        
+        print(f"[Meme] Generating meme with Nano Banana (style: {style})...")
+        
+        image_response = self.client.models.generate_content(
+            model="gemini-3-pro-image-preview",  # Nano Banana Pro - Gemini 3 Pro Image
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[
+                        types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+                        types.Part.from_text(text=edit_prompt)
+                    ]
+                )
+            ],
+            config=types.GenerateContentConfig(
+                response_modalities=["TEXT", "IMAGE"]
             )
+        )
         
-        # Draw bottom text
-        if caption.bottom_text:
-            text = caption.bottom_text.upper()
-            self._draw_text_with_outline(
-                draw, text, font,
-                position=(width // 2, int(height * 0.92)),
-                stroke_width=stroke_width,
-                anchor="bottom"
-            )
+        # Extract the generated image from the response
+        generated_image = None
+        for part in image_response.candidates[0].content.parts:
+            if part.inline_data is not None:
+                image_data = part.inline_data.data
+                if isinstance(image_data, str):
+                    image_data = base64.b64decode(image_data)
+                generated_image = Image.open(io.BytesIO(image_data))
+                break
         
-        return img
-    
-    def _render_modern_meme(self, img: Image.Image, caption: MemeCaption) -> Image.Image:
-        """Render modern meme with white caption bar."""
-        width, height = img.size
+        if generated_image is None:
+            raise ValueError("No image was generated by Nano Banana")
         
-        # Add white bar at top
-        bar_height = int(height * 0.12)
-        new_img = Image.new('RGB', (width, height + bar_height), 'white')
-        new_img.paste(img, (0, bar_height))
+        # Convert to base64
+        output_buffer = io.BytesIO()
+        generated_image.save(output_buffer, format='PNG')
+        generated_base64 = base64.b64encode(output_buffer.getvalue()).decode('utf-8')
         
-        draw = ImageDraw.Draw(new_img)
+        # Save if output path provided
+        if output_path:
+            generated_image.save(output_path)
+            print(f"[Meme] Saved to {output_path}")
         
-        # Draw caption text in bar
-        if caption.caption:
-            font_size = int(bar_height * 0.5)
-            font = self._get_font(font_size)
-            
-            # Word wrap if needed
-            lines = self._wrap_text(caption.caption, font, width - 40)
-            
-            y = bar_height // 2 - (len(lines) * font_size) // 2
-            for line in lines:
-                bbox = draw.textbbox((0, 0), line, font=font)
-                text_width = bbox[2] - bbox[0]
-                x = (width - text_width) // 2
-                draw.text((x, y), line, font=font, fill='black')
-                y += font_size + 5
+        print(f"[Meme] ✅ Meme generated successfully!")
         
-        return new_img
-    
-    def _render_quote_meme(self, img: Image.Image, caption: MemeCaption) -> Image.Image:
-        """Render quote-style meme with semi-transparent overlay."""
-        width, height = img.size
-        
-        # Create semi-transparent overlay at bottom
-        overlay = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-        overlay_draw = ImageDraw.Draw(overlay)
-        
-        # Draw gradient overlay at bottom
-        overlay_height = int(height * 0.3)
-        for i in range(overlay_height):
-            alpha = int(180 * (i / overlay_height))
-            overlay_draw.line(
-                [(0, height - overlay_height + i), (width, height - overlay_height + i)],
-                fill=(0, 0, 0, alpha)
-            )
-        
-        # Convert img to RGBA and composite
-        if img.mode != 'RGBA':
-            img = img.convert('RGBA')
-        img = Image.alpha_composite(img, overlay)
-        
-        # Draw quote text
-        draw = ImageDraw.Draw(img)
-        
-        text = caption.caption or caption.bottom_text or ""
-        if text:
-            font_size = int(width * 0.05)
-            font = self._get_font(font_size)
-            
-            lines = self._wrap_text(text, font, width - 60)
-            
-            y = height - int(overlay_height * 0.8)
-            for line in lines:
-                bbox = draw.textbbox((0, 0), line, font=font)
-                text_width = bbox[2] - bbox[0]
-                x = (width - text_width) // 2
-                draw.text((x, y), line, font=font, fill='white')
-                y += font_size + 5
-        
-        return img.convert('RGB')
-    
-    def _draw_text_with_outline(
-        self,
-        draw: ImageDraw.Draw,
-        text: str,
-        font: ImageFont.FreeTypeFont,
-        position: tuple,
-        stroke_width: int = 3,
-        text_color: str = 'white',
-        stroke_color: str = 'black',
-        anchor: str = "top"
-    ):
-        """Draw text with stroke outline (classic meme style)."""
-        x, y = position
-        
-        # Get text size
-        bbox = draw.textbbox((0, 0), text, font=font)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
-        
-        # Center horizontally
-        x = x - text_width // 2
-        
-        # Adjust vertical position
-        if anchor == "bottom":
-            y = y - text_height
-        
-        # Draw stroke (outline)
-        for dx in range(-stroke_width, stroke_width + 1):
-            for dy in range(-stroke_width, stroke_width + 1):
-                if dx != 0 or dy != 0:
-                    draw.text((x + dx, y + dy), text, font=font, fill=stroke_color)
-        
-        # Draw main text
-        draw.text((x, y), text, font=font, fill=text_color)
-    
-    def _wrap_text(self, text: str, font: ImageFont.FreeTypeFont, max_width: int) -> list[str]:
-        """Wrap text to fit within max_width."""
-        words = text.split()
-        lines = []
-        current_line = []
-        
-        for word in words:
-            current_line.append(word)
-            test_line = ' '.join(current_line)
-            
-            # Use a dummy draw to measure
-            dummy_img = Image.new('RGB', (1, 1))
-            dummy_draw = ImageDraw.Draw(dummy_img)
-            bbox = dummy_draw.textbbox((0, 0), test_line, font=font)
-            
-            if bbox[2] > max_width:
-                current_line.pop()
-                if current_line:
-                    lines.append(' '.join(current_line))
-                current_line = [word]
-        
-        if current_line:
-            lines.append(' '.join(current_line))
-        
-        return lines
+        return {
+            "image_base64": generated_base64,
+            "caption": meme_content['caption'],
+            "image_prompt": meme_content['image_prompt'],
+            "style": style
+        }
 
 
 # Singleton instance
-meme_engine = MemeEngine()
+meme_engine = NanoBananaMemeEngine()

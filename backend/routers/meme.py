@@ -1,25 +1,15 @@
 """
 ragebAIt - Meme Generation Router
-Handles meme options and generation.
+Handles meme generation using Nano Banana (Gemini's native image generation).
 """
 
 import uuid
-import httpx
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from backend.config import settings
-from backend.models.schemas import (
-    MemeOptionsResponse,
-    MemeGenerateRequest,
-    MemeGenerateResponse,
-    MemeCaption,
-    MemeFormat,
-    LensType,
-    ErrorResponse
-)
-from backend.services.gemini_client import gemini_client
 from backend.services.meme_engine import meme_engine
 from backend.services.storage_client import storage_client
 from backend.routers.generate import get_video_data
@@ -28,96 +18,44 @@ from backend.routers.generate import get_video_data
 router = APIRouter(tags=["meme"])
 
 
-@router.get(
-    "/api/meme/options",
-    response_model=MemeOptionsResponse,
-    responses={404: {"model": ErrorResponse}}
-)
-async def get_meme_options(
-    video_id: str,
-    lens: Optional[LensType] = None
-):
-    """
-    Get meme generation options for a processed video.
-    
-    Returns:
-    - Best frame selected by AI
-    - 3 caption options matching the lens style
-    """
-    # Get video data from store
-    video_data = get_video_data(video_id)
-    if not video_data:
-        raise HTTPException(status_code=404, detail="Video not found. Generate video first.")
-    
-    frames = video_data.get("frames", [])
-    if not frames:
-        raise HTTPException(status_code=404, detail="No frames available for this video")
-    
-    commentary_text = video_data.get("commentary_text", "")
-    video_lens = lens or video_data.get("lens", LensType.NATURE_DOCUMENTARY)
-    
-    try:
-        # Select best frame using Gemini
-        best_frame_result = await gemini_client.select_best_frame_for_meme(
-            frames,
-            commentary_text
-        )
-        
-        best_frame_index = best_frame_result.get("best_frame_index", 0)
-        best_frame_index = min(best_frame_index, len(frames) - 1)
-        best_frame = frames[best_frame_index]
-        
-        # Generate caption options
-        captions_data = await gemini_client.generate_meme_captions(
-            best_frame["image_base64"],
-            commentary_text,
-            video_lens
-        )
-        
-        # Convert to MemeCaption objects
-        captions = []
-        for i, cap_data in enumerate(captions_data[:3]):
-            captions.append(MemeCaption(
-                id=cap_data.get("id", f"caption_{i}"),
-                top_text=cap_data.get("top_text"),
-                bottom_text=cap_data.get("bottom_text"),
-                caption=cap_data.get("caption"),
-                template=cap_data.get("template", "classic"),
-                humor_rating=cap_data.get("humor_rating", 7)
-            ))
-        
-        return MemeOptionsResponse(
-            video_id=video_id,
-            frame_base64=best_frame["image_base64"],
-            frame_timestamp=best_frame["timestamp"],
-            frame_reason=best_frame_result.get("reason", "AI selected best frame"),
-            captions=captions,
-            lens=video_lens
-        )
-        
-    except Exception as e:
-        print(f"[Meme] Error getting options: {e}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+class MemeGenerateRequest(BaseModel):
+    """Request to generate a meme from a video frame."""
+    video_id: str = Field(..., description="Video ID to get frame from")
+    frame_index: Optional[int] = Field(default=None, description="Specific frame index (default: best frame)")
+
+
+class MemeGenerateResponse(BaseModel):
+    """Response with generated meme."""
+    meme_id: str = Field(..., description="Unique meme ID")
+    meme_url: str = Field(..., description="URL to generated meme image")
+    caption: str = Field(..., description="Social media caption with hashtags")
+    style: str = Field(..., description="Meme style used")
+    image_prompt: str = Field(..., description="The prompt used to generate the meme")
 
 
 @router.post(
     "/api/meme/generate",
     response_model=MemeGenerateResponse,
-    responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}}
+    summary="Generate a gen-z meme from video frame"
 )
 async def generate_meme(request: MemeGenerateRequest):
     """
-    Generate a meme image from the selected frame and caption.
+    Generate a gen-z sports meme using Nano Banana (Gemini's native image generation).
     
-    Supports:
-    - Classic meme format (Impact font top/bottom)
-    - Modern meme format (white bar with caption)
-    - Quote format (text overlay on image)
+    This endpoint:
+    1. Takes a frame from a previously processed video
+    2. Analyzes it for meme potential
+    3. Uses Nano Banana to generate a styled meme
+    4. Returns the meme with a social media caption
     
-    Can optionally use Dizzy's Nano Banana API for enhanced generation.
+    Styles include: deepfried, surreal, wholesome, cursed, clean, chaotic
     """
+    if not meme_engine.is_available():
+        raise HTTPException(
+            status_code=503,
+            detail="Nano Banana meme engine not available. Check GOOGLE_CLOUD_PROJECT or GEMINI_API_KEY."
+        )
+    
     # Get video data
     video_data = get_video_data(request.video_id)
     if not video_data:
@@ -125,167 +63,108 @@ async def generate_meme(request: MemeGenerateRequest):
     
     frames = video_data.get("frames", [])
     if not frames:
-        raise HTTPException(status_code=404, detail="No frames available")
+        raise HTTPException(status_code=404, detail="No frames available for this video")
     
-    # Use first frame or find the previously selected one
-    frame_base64 = frames[0]["image_base64"]
+    # Select frame
+    if request.frame_index is not None:
+        if request.frame_index < 0 or request.frame_index >= len(frames):
+            raise HTTPException(status_code=400, detail=f"Frame index out of range (0-{len(frames)-1})")
+        frame = frames[request.frame_index]
+    else:
+        # Use middle frame as default (often captures the key moment)
+        frame = frames[len(frames) // 2]
     
-    meme_id = uuid.uuid4().hex[:12]
+    # Get context from video data
+    context_parts = []
+    if video_data.get("commentary_text"):
+        context_parts.append(f"Commentary: {video_data['commentary_text'][:200]}")
+    if video_data.get("funny_moment"):
+        moment = video_data["funny_moment"]
+        context_parts.append(f"Moment: {moment.get('description', '')}")
+        context_parts.append(f"Why it's funny: {moment.get('reason', '')}")
+    
+    context = " | ".join(context_parts) if context_parts else ""
     
     try:
-        # Option 1: Try Nano Banana API (Dizzy's integration)
-        if request.use_nano_banana:
-            meme_url = await _try_nano_banana(
-                frame_base64,
-                request.caption,
-                request.format
-            )
-            if meme_url:
-                # Get dimensions from format
-                dimensions = {
-                    MemeFormat.SQUARE: (1080, 1080),
-                    MemeFormat.WIDE: (1200, 675),
-                    MemeFormat.TALL: (1080, 1920),
-                }
-                width, height = dimensions.get(request.format, (1080, 1080))
-                
-                return MemeGenerateResponse(
-                    meme_id=meme_id,
-                    meme_url=meme_url,
-                    format=request.format,
-                    width=width,
-                    height=height
-                )
+        # Generate meme
+        meme_id = uuid.uuid4().hex[:12]
+        output_path = str(settings.TEMP_DIR / f"meme_{meme_id}.png")
         
-        # Option 2: Use local meme engine
-        meme_bytes = meme_engine.render_meme(
-            frame_base64,
-            request.caption,
-            request.format
+        result = await meme_engine.generate_meme(
+            frame_base64=frame["image_base64"],
+            context=context,
+            output_path=output_path
         )
         
-        # Upload to storage
+        # Upload to storage if available
         if storage_client.is_available():
-            meme_url = await storage_client.upload_image(
-                meme_bytes,
-                f"meme_{meme_id}.png"
-            )
+            meme_url = await storage_client.upload_from_path(output_path)
         else:
-            # Save locally and return file path
-            output_path = settings.TEMP_DIR / f"meme_{meme_id}.png"
-            with open(output_path, 'wb') as f:
-                f.write(meme_bytes)
             meme_url = f"file://{output_path}"
-        
-        # Get dimensions
-        dimensions = {
-            MemeFormat.SQUARE: (1080, 1080),
-            MemeFormat.WIDE: (1200, 675),
-            MemeFormat.TALL: (1080, 1920),
-        }
-        width, height = dimensions.get(request.format, (1080, 1080))
         
         return MemeGenerateResponse(
             meme_id=meme_id,
             meme_url=meme_url,
-            format=request.format,
-            width=width,
-            height=height
+            caption=result["caption"],
+            style=result["style"],
+            image_prompt=result["image_prompt"]
         )
         
     except Exception as e:
-        print(f"[Meme] Error generating: {e}")
+        print(f"[Meme] Error generating meme: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def _try_nano_banana(
-    frame_base64: str,
-    caption: MemeCaption,
-    format: MemeFormat
-) -> Optional[str]:
-    """
-    Try to generate meme using Dizzy's Nano Banana API.
-    
-    This is a placeholder - Dizzy will provide the actual endpoint.
-    
-    Args:
-        frame_base64: Base64 encoded frame image
-        caption: Caption configuration
-        format: Output format
-        
-    Returns:
-        URL to generated meme, or None if API unavailable
-    """
-    # TODO: Dizzy to implement Nano Banana integration
-    # Expected endpoint: POST /api/nano-banana/generate
-    # 
-    # Example request:
-    # {
-    #     "image_base64": "...",
-    #     "top_text": "TOP TEXT",
-    #     "bottom_text": "BOTTOM TEXT",
-    #     "style": "classic|modern|quote",
-    #     "format": "square|wide|tall"
-    # }
-    #
-    # Example response:
-    # {
-    #     "image_url": "https://..."
-    # }
-    
-    NANO_BANANA_URL = None  # Set by Dizzy
-    
-    if not NANO_BANANA_URL:
-        return None
-    
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                NANO_BANANA_URL,
-                json={
-                    "image_base64": frame_base64,
-                    "top_text": caption.top_text,
-                    "bottom_text": caption.bottom_text,
-                    "caption": caption.caption,
-                    "style": caption.template,
-                    "format": format.value
-                },
-                timeout=30.0
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                return result.get("image_url")
-    except Exception as e:
-        print(f"[Meme] Nano Banana API error: {e}")
-    
-    return None
+@router.get("/api/meme/styles")
+async def list_styles():
+    """List available meme styles."""
+    return {
+        "styles": [
+            {
+                "id": "deepfried",
+                "name": "Deep Fried",
+                "description": "Oversaturated colors, lens flares, emojis, warped/distorted, ironic humor"
+            },
+            {
+                "id": "surreal",
+                "name": "Surreal",
+                "description": "Weird edits, unexpected objects, dreamlike, absurd"
+            },
+            {
+                "id": "wholesome",
+                "name": "Wholesome",
+                "description": "Clean edit with heartwarming twist, feel-good energy"
+            },
+            {
+                "id": "cursed",
+                "name": "Cursed",
+                "description": "Unsettling, weird cropping, ominous energy"
+            },
+            {
+                "id": "clean",
+                "name": "Clean",
+                "description": "Professional-looking meme, clear text overlays, polished"
+            },
+            {
+                "id": "chaotic",
+                "name": "Chaotic",
+                "description": "Maximum chaos, multiple elements, sensory overload, gen-z brain rot"
+            }
+        ]
+    }
 
 
 @router.get("/api/meme/templates")
-async def list_meme_templates():
-    """List available meme templates."""
+async def list_templates():
+    """List meme templates (legacy endpoint for compatibility)."""
     return {
         "templates": [
             {
-                "id": "classic",
-                "name": "Classic Meme",
-                "description": "Impact font, top and bottom text",
-                "example": "TOP TEXT / BOTTOM TEXT"
-            },
-            {
-                "id": "modern",
-                "name": "Modern Caption",
-                "description": "White bar at top with caption",
-                "example": "Nobody: ... Me:"
-            },
-            {
-                "id": "quote",
-                "name": "Quote Overlay",
-                "description": "Text overlay on darkened bottom",
-                "example": "\"Inspirational quote\" - Person"
+                "id": "nano_banana",
+                "name": "Nano Banana AI",
+                "description": "AI-generated gen-z sports meme using Gemini's native image generation"
             }
         ]
     }
