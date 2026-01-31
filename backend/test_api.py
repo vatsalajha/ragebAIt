@@ -71,12 +71,12 @@ async def test_generate_video(video_path: str, lens: str = "nature_documentary")
             files = {'video': (Path(video_path).name, f, 'video/mp4')}
             data = {
                 'lens': lens,
-                'clip_duration_min': '10',
-                'clip_duration_max': '15'
+                'min_scene_duration': '8',
+                'max_scene_duration': '30'
             }
             
-            print("   🔍 Step 1: Finding funny moments in video...")
-            print("   ✂️ Step 2: Extracting best clip...")
+            print("   🔍 Step 1: Finding complete funny SCENES in video...")
+            print("   ✂️ Step 2: Extracting complete scene (waits for action to finish)...")
             print("   🎙️ Step 3: Generating ragebait commentary...")
             print("   🔊 Step 4: Synthesizing TTS with fal.ai...")
             print("   (This may take 2-5 minutes for longer videos)")
