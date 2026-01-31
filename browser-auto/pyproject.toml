@@ -1,0 +1,10 @@
+[project]
+name = "ragebait"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.14"
+dependencies = [
+    "browser-use>=0.11.5",
+    "google-genai>=1.0.0",
+    "python-dotenv>=1.2.1",
+]
