@@ -41,19 +41,19 @@ async def generate_commentary(
     video: UploadFile = File(..., description="Video file to process (1-2 minutes)"),
     lens: LensType = Form(..., description="Comedy lens to apply"),
     context: Optional[str] = Form(default=None, description="JSON context from Browser Use"),
-    clip_duration_min: float = Form(default=10.0, description="Minimum clip duration (seconds)"),
-    clip_duration_max: float = Form(default=15.0, description="Maximum clip duration (seconds)")
+    min_scene_duration: float = Form(default=8.0, description="Minimum scene duration (seconds)"),
+    max_scene_duration: float = Form(default=30.0, description="Maximum scene duration (seconds)")
 ):
     """
     Generate AI ragebait comedy commentary for a sports video.
     
-    NEW WORKFLOW:
+    SCENE-BASED WORKFLOW:
     1. Accepts a longer video file (1-2 minutes)
-    2. Uses Gemini to FIND the funniest 10-15 second moment
-    3. Extracts that clip
-    4. Generates ragebait-style commentary for the clip
+    2. Uses Gemini to FIND the funniest COMPLETE SCENE (waits for action to finish)
+    3. Extracts that complete scene
+    4. Generates ragebait-style commentary for the scene
     5. Uses fal.ai TTS with angry/fast voice (TikTok style)
-    6. Returns the final viral-ready short clip
+    6. Returns the final viral-ready clip with the complete scene
     """
     # Validate file
     if not video.filename:
@@ -99,28 +99,29 @@ async def generate_commentary(
             except json.JSONDecodeError:
                 pass  # Ignore invalid context
         
-        # STEP 1: Find funny moments in the video
-        print(f"[Generate] 🔍 Finding funny moments in {video_info['duration']:.1f}s video...")
+        # STEP 1: Find complete funny scenes in the video
+        print(f"[Generate] 🔍 Finding complete funny scenes in {video_info['duration']:.1f}s video...")
         funny_moments = await gemini_client.find_funny_moments(
             str(temp_video_path),
-            min_clip_duration=clip_duration_min,
-            max_clip_duration=clip_duration_max,
+            min_clip_duration=min_scene_duration,
+            max_clip_duration=max_scene_duration,
             num_moments=3  # Find top 3, use the best one
         )
         
         if not funny_moments:
             raise HTTPException(
                 status_code=500,
-                detail="Could not find any interesting moments in the video"
+                detail="Could not find any interesting scenes in the video"
             )
         
-        # Use the best moment (highest humor score)
+        # Use the best scene (highest humor score)
         best_moment = funny_moments[0]
-        print(f"[Generate] 🎯 Best moment: [{best_moment.start_time:.1f}s-{best_moment.end_time:.1f}s] Score: {best_moment.humor_score}/10")
+        scene_duration = best_moment.end_time - best_moment.start_time
+        print(f"[Generate] 🎯 Best scene: [{best_moment.start_time:.1f}s-{best_moment.end_time:.1f}s] ({scene_duration:.1f}s) Score: {best_moment.humor_score}/10")
         print(f"[Generate]    Description: {best_moment.description}")
         print(f"[Generate]    Reason: {best_moment.reason}")
         
-        # STEP 2: Extract the clip
+        # STEP 2: Extract the complete scene
         clip_path = str(settings.TEMP_DIR / f"{video_id}_clip.mp4")
         clip_path = video_processor.extract_clip(
             str(temp_video_path),

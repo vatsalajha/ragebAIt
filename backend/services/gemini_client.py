@@ -103,12 +103,12 @@ class GeminiClient:
     async def find_funny_moments(
         self,
         video_path: str,
-        min_clip_duration: float = 10.0,
-        max_clip_duration: float = 15.0,
+        min_clip_duration: float = 8.0,
+        max_clip_duration: float = 30.0,
         num_moments: int = 3
     ) -> list[FunnyMoment]:
         """
-        Analyze a longer video to find the funniest/most interesting moments.
+        Analyze a longer video to find complete funny/interesting scenes.
         
         Args:
             video_path: Path to video file
@@ -120,7 +120,7 @@ class GeminiClient:
             List of FunnyMoment objects, sorted by humor_score (highest first)
         """
         # Upload video to Gemini
-        print(f"[Gemini] Uploading video for funny moment detection: {video_path}")
+        print(f"[Gemini] Uploading video for scene detection: {video_path}")
         video_file = genai.upload_file(video_path)
         
         # Wait for processing
@@ -134,39 +134,45 @@ class GeminiClient:
         
         print(f"[Gemini] Video ready: {video_file.uri}")
         
-        # Build prompt for finding funny moments
+        # Build prompt for finding complete scenes
         prompt = f"""
-You are an expert at finding viral, funny, and engaging moments in videos for short-form content (TikTok, Reels, Shorts).
+You are an expert at finding viral, funny, and engaging COMPLETE SCENES in videos for short-form content (TikTok, Reels, Shorts).
 
-Watch this video carefully and identify the TOP {num_moments} moments that would make the BEST short clips for ragebait/viral content.
+Watch this video carefully and identify the TOP {num_moments} COMPLETE SCENES that would make the BEST clips for ragebait/viral content.
 
-WHAT TO LOOK FOR:
-- Fails, mistakes, or embarrassing moments
-- Unexpected plays or reactions
-- Dramatic moments (close calls, near misses)
-- Funny expressions or body language
-- Moments that would make viewers say "WAIT WHAT?!" or "BRO NO WAY!"
-- Peak action moments with high energy
-- Awkward pauses or interactions
-- Anything that would make people comment and share
+CRITICAL: IDENTIFY COMPLETE SCENES - NOT ARBITRARY CUTS!
+- A scene starts when the action/play BEGINS
+- A scene ends when the action/play COMPLETES (goal scored, play finished, reaction complete, etc.)
+- NEVER cut in the middle of an action - wait for it to finish!
+- Include the full build-up AND the payoff/result
 
-REQUIREMENTS FOR EACH MOMENT:
-- Duration must be between {min_clip_duration} and {max_clip_duration} seconds
-- Include a buffer around the key moment (2-3 seconds before and after)
-- The moment should be self-contained and understandable without context
+WHAT MAKES A GOOD SCENE:
+- Fails, mistakes, or embarrassing moments WITH the aftermath/reaction
+- Complete plays from start to finish
+- A moment building up to a climax/payoff
+- Full reactions (not cut off mid-expression)
+- The setup AND the punchline
 
-Return ONLY valid JSON array with exactly {num_moments} moments:
+SCENE BOUNDARY RULES:
+- START: When the relevant action begins (player receives ball, approach starts, etc.)
+- END: When the action is FULLY COMPLETE (celebration ends, players reset, camera cuts away)
+- Minimum duration: {min_clip_duration} seconds
+- Maximum duration: {max_clip_duration} seconds
+- If a scene is longer than {max_clip_duration}s, find a natural break point
+
+Return ONLY valid JSON array with exactly {num_moments} complete scenes:
 [
   {{
-    "start_time": <float - start time in seconds>,
-    "end_time": <float - end time in seconds>,
-    "description": "<what happens in this moment>",
+    "start_time": <float - when the scene/action BEGINS>,
+    "end_time": <float - when the scene/action is FULLY COMPLETE>,
+    "description": "<what happens from start to finish>",
     "humor_score": <1-10, where 10 is viral-worthy>,
-    "reason": "<why this moment would go viral / be funny for ragebait>"
+    "reason": "<why this complete scene would go viral>"
   }}
 ]
 
-Sort by humor_score descending (best moment first).
+Sort by humor_score descending (best scene first).
+IMPORTANT: Make sure end_time captures the COMPLETE scene - don't cut off early!
 """
         
         print(f"[Gemini] Finding funny moments...")
@@ -196,12 +202,13 @@ Sort by humor_score descending (best moment first).
                     reason=str(item.get("reason", ""))
                 )
                 
-                # Ensure duration is within bounds
+                # Only enforce minimum - let scenes complete naturally
                 duration = moment.end_time - moment.start_time
                 if duration < min_clip_duration:
+                    # Extend to minimum if too short
                     moment.end_time = moment.start_time + min_clip_duration
-                elif duration > max_clip_duration:
-                    moment.end_time = moment.start_time + max_clip_duration
+                # Don't cut max - let the scene finish!
+                # (Gemini should respect the max in its selection)
                 
                 moments.append(moment)
             except (ValueError, KeyError) as e:
