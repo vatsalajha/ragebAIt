@@ -1,0 +1,49 @@
+# Environment files
+.env
+.env.local
+.env*.local
+
+# Secrets and credentials
+secret/
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+.eggs/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temp files
+/tmp/
+*.tmp
+*.temp
+*.log
+
+# Node (if frontend added later)
+node_modules/
+.next/
+out/
+
+# Test/coverage
+.coverage
+htmlcov/
+.pytest_cache/
