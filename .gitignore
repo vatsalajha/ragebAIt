@@ -9,13 +9,20 @@ secret/
 !package.json
 !package-lock.json
 !tsconfig.json
-ragebait-486019-e622b48c2365.json
+!vercel.json
+*-*.json
 
+# Media and Large Files
 videos/
 *.mp4
 *.mov
 *.avi
 *.webm
+*.bin
+*.jpg
+*.jpeg
+*.png
+*.gif
 
 # Python
 __pycache__/
@@ -45,7 +52,7 @@ build/
 *.temp
 *.log
 
-# Node (if frontend added later)
+# Node
 node_modules/
 .next/
 out/
@@ -56,5 +63,3 @@ htmlcov/
 .pytest_cache/
 
 uv.lock
-
-vercel.json
