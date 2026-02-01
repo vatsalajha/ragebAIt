@@ -23,6 +23,12 @@ export interface MemeResult {
   image_prompt: string;
 }
 
+export interface ParodyResult {
+  parody_id: string;
+  video_url: string;
+  motion_directive: string;
+}
+
 export interface RoastResult {
   job_id: string;
   status: "processing" | "completed" | "failed";
@@ -91,7 +97,7 @@ export const api = {
   startRoast: async (file: File, lensId: string): Promise<{ job_id: string }> => {
     // Generate a temporary job ID
     const jobId = `job_${Date.now()}`;
-    
+
     // Store initial processing state
     resultCache[jobId] = {
       job_id: jobId,
@@ -104,7 +110,7 @@ export const api = {
     api.generateVideo(file, lensId)
       .then(async (data) => {
         console.log(`[API] Generation completed! Video ID: ${data.video_id}`);
-        
+
         // Map job ID to video ID for future lookups
         jobToVideoId[jobId] = data.video_id;
 
@@ -168,6 +174,9 @@ export const api = {
             job_id: data.video_id,
             status: "completed",
             video_url: data.video_url,
+            thumbnail_url: data.thumbnail_url,
+            meme_url: data.meme_url,
+            caption: data.caption,
             duration: data.duration,
             lens: data.lens,
             transcript: data.segments?.map((s: CommentarySegment) => ({
@@ -184,17 +193,20 @@ export const api = {
     // Try to fetch directly from backend (if jobId is actually a video_id)
     try {
       const response = await fetch(`${API_BASE}/api/video/${jobId}`);
-      
+
       if (!response.ok) {
         return { job_id: jobId, status: "processing" };
       }
 
       const data = await response.json();
-      
+
       return {
         job_id: data.video_id,
         status: "completed",
         video_url: data.video_url,
+        thumbnail_url: data.thumbnail_url,
+        meme_url: data.meme_url,
+        caption: data.caption,
         duration: data.duration,
         lens: data.lens,
         transcript: data.segments?.map((s: CommentarySegment) => ({
@@ -214,15 +226,43 @@ export const api = {
     const response = await fetch(`${API_BASE}/api/meme/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         video_id: videoId,
-        frame_index: frameIndex 
+        frame_index: frameIndex
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Meme generation failed: ${errorText}`);
+    }
+
+    return await response.json();
+  },
+
+  /**
+   * Generate a parody video from an image using fal.ai
+   */
+  generateParody: async (
+    videoId: string,
+    motionDirective: string,
+    memeUrl?: string,
+    frameIndex?: number
+  ): Promise<ParodyResult> => {
+    const response = await fetch(`${API_BASE}/api/parody/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        video_id: videoId,
+        motion_directive: motionDirective,
+        meme_url: memeUrl,
+        frame_index: frameIndex
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Parody generation failed: ${errorText}`);
     }
 
     return await response.json();

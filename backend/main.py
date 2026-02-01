@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import settings
-from backend.routers import generate_router, meme_router
+from backend.routers import generate_router, meme_router, parody_router
 from backend.models.schemas import HealthResponse
 
 
@@ -33,6 +33,7 @@ app.add_middleware(
 # Include routers
 app.include_router(generate_router)
 app.include_router(meme_router)
+app.include_router(parody_router)
 
 
 @app.get("/", tags=["root"])
@@ -56,11 +57,13 @@ async def health_check():
     from backend.services.tts_client import tts_client
     from backend.services.storage_client import storage_client
     from backend.services.meme_engine import meme_engine
+    from backend.services.parody_service import parody_service
     
     services = {
         "gemini": bool(settings.GEMINI_API_KEY),
         "tts_fal": tts_client.is_available(),  # fal.ai TTS
         "nano_banana": meme_engine.is_available(),  # Nano Banana meme gen
+        "parody_fal": parody_service.is_available(), # fal.ai parody
         "storage": storage_client.is_available(),
     }
     
@@ -92,10 +95,12 @@ async def startup_event():
     from backend.services.storage_client import storage_client
     
     from backend.services.meme_engine import meme_engine
+    from backend.services.parody_service import parody_service
     
     print(f"   Gemini API: {'✅' if settings.GEMINI_API_KEY else '❌'}")
     print(f"   fal.ai TTS: {'✅' if tts_client.is_available() else '❌'}")
     print(f"   Nano Banana: {'✅' if meme_engine.is_available() else '❌'}")
+    print(f"   fal.ai Parody: {'✅' if parody_service.is_available() else '❌'}")
     print(f"   Storage: {'✅' if storage_client.is_available() else '❌'}")
     
     print("=" * 50)

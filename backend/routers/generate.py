@@ -103,6 +103,7 @@ async def generate_commentary(
         print(f"[Generate] 🔍 Finding complete funny scenes in {video_info['duration']:.1f}s video...")
         funny_moments = await gemini_client.find_funny_moments(
             str(temp_video_path),
+            video_duration=video_info['duration'],
             min_clip_duration=min_scene_duration,
             max_clip_duration=max_scene_duration,
             num_moments=3  # Find top 3, use the best one
@@ -143,6 +144,21 @@ async def generate_commentary(
         )
         
         print(f"[Generate] Got {len(segments)} ragebait commentary segments")
+        
+        # Store initial video data (without meme yet)
+        commentary_text = " ".join([s.text for s in segments])
+        video_store[video_id] = {
+            "video_path": clip_path,
+            "original_video_path": str(temp_video_path),
+            "segments": segments,
+            "commentary_text": commentary_text,
+            "lens": lens,
+            "video_info": {
+                "duration": clip_duration,
+                "original_duration": video_info['duration'],
+                **video_info
+            }
+        }
         
         # Extract frames from clip for meme generation later
         frames = video_processor.extract_frames(
@@ -191,21 +207,11 @@ async def generate_commentary(
             else:
                 output_video_url = f"file://{clip_path}"
         
-        # Store video data for meme generation
-        commentary_text = " ".join([s.text for s in segments])
-        video_store[video_id] = {
-            "video_path": clip_path,
-            "original_video_path": str(temp_video_path),
-            "frames": frames,
-            "segments": segments,
-            "commentary_text": commentary_text,
-            "lens": lens,
-            "video_info": {
-                "duration": clip_duration,
-                "original_duration": video_info['duration'],
-                **video_info
-            },
+        # Update storage URLs
+        video_store[video_id].update({
             "output_url": output_video_url,
+            "thumbnail_url": thumbnail_url,
+            "frames": frames,
             "funny_moment": {
                 "start_time": best_moment.start_time,
                 "end_time": best_moment.end_time,
@@ -213,7 +219,23 @@ async def generate_commentary(
                 "humor_score": best_moment.humor_score,
                 "reason": best_moment.reason
             }
-        }
+        })
+
+        # STEP 6: Auto-generate meme in background (simulated here for simplicity)
+        # In a real app, this should be a background task
+        try:
+            print(f"[Generate] 🍌 Auto-generating meme...")
+            meme_result = await meme_engine.generate_meme(
+                frame_base64=frames[len(frames) // 2]["image_base64"],
+                context=commentary_text
+            )
+            video_store[video_id].update({
+                "meme_url": await storage_client.upload_image(base64.b64decode(meme_result["image_base64"]), "meme.png") if storage_client.is_available() else f"data:image/png;base64,{meme_result['image_base64']}",
+                "caption": meme_result["caption"]
+            })
+            print(f"[Generate] ✅ Auto-meme ready")
+        except Exception as e:
+            print(f"[Generate] Warning: Auto-meme failed: {e}")
         
         print(f"[Generate] ✅ Ragebait clip ready! Video ID: {video_id}")
         
@@ -262,6 +284,9 @@ async def get_video_info(video_id: str):
     return {
         "video_id": video_id,
         "video_url": data.get("output_url", ""),
+        "thumbnail_url": data.get("thumbnail_url"),
+        "meme_url": data.get("meme_url"),
+        "caption": data.get("caption"),
         "lens": data.get("lens", ""),
         "duration": data.get("video_info", {}).get("duration", 0),
         "original_duration": data.get("video_info", {}).get("original_duration", 0),

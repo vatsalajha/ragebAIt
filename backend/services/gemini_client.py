@@ -103,6 +103,7 @@ class GeminiClient:
     async def find_funny_moments(
         self,
         video_path: str,
+        video_duration: float = 0,
         min_clip_duration: float = 8.0,
         max_clip_duration: float = 30.0,
         num_moments: int = 3
@@ -139,6 +140,9 @@ class GeminiClient:
 You are an expert at finding viral, funny, and engaging COMPLETE SCENES in videos for short-form content (TikTok, Reels, Shorts).
 
 Watch this video carefully and identify the TOP {num_moments} COMPLETE SCENES that would make the BEST clips for ragebait/viral content.
+
+VIDEO DURATION: {video_duration:.1f} seconds.
+DO NOT suggest timestamps outside [0, {video_duration:.1f}].
 
 CRITICAL: IDENTIFY COMPLETE SCENES - NOT ARBITRARY CUTS!
 - A scene starts when the action/play BEGINS
@@ -207,8 +211,16 @@ IMPORTANT: Make sure end_time captures the COMPLETE scene - don't cut off early!
                 if duration < min_clip_duration:
                     # Extend to minimum if too short
                     moment.end_time = moment.start_time + min_clip_duration
-                # Don't cut max - let the scene finish!
-                # (Gemini should respect the max in its selection)
+                
+                # FINAL SAFETY: Ensure times are within video bounds
+                if video_duration > 0:
+                    if moment.start_time >= video_duration:
+                        moment.start_time = max(0, video_duration - min_clip_duration)
+                    if moment.end_time > video_duration:
+                        moment.end_time = video_duration
+                
+                if moment.start_time >= moment.end_time:
+                    moment.end_time = moment.start_time + min_clip_duration
                 
                 moments.append(moment)
             except (ValueError, KeyError) as e:

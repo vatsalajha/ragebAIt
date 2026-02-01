@@ -12,6 +12,7 @@ import { toast } from "sonner";
 
 import { api, RoastResult } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { ParodyGenerator } from "@/components/ParodyGenerator";
 
 export default function ResultPage() {
     const params = useParams();
@@ -66,7 +67,7 @@ export default function ResultPage() {
 
     const handleRegenerateMeme = async () => {
         if (!result?.job_id) return;
-        
+
         setIsRegeneratingMeme(true);
         try {
             const memeResult = await api.generateMeme(result.job_id);
@@ -115,7 +116,7 @@ export default function ResultPage() {
                     </h1>
                 </div>
                 <div className="flex gap-2">
-                    <Button 
+                    <Button
                         className="bg-[#1DA1F2] hover:bg-[#1DA1F2]/90 text-white border-0"
                         onClick={handleShareToTwitter}
                         disabled={status !== "completed"}
@@ -129,17 +130,17 @@ export default function ResultPage() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0">
 
                 {/* Left: Final Video */}
-                <div className="lg:col-span-7 flex flex-col space-y-4">
-                    <Card className="flex-1 bg-black border-white/10 relative overflow-hidden group shadow-2xl rounded-2xl min-h-[400px]">
+                <div className="lg:col-span-8 flex flex-col space-y-4">
+                    <Card className="flex-1 bg-black border-white/10 relative overflow-hidden group shadow-2xl rounded-2xl min-h-[350px]">
                         <Badge className={cn(
                             "absolute top-4 left-4 z-10 transition-colors duration-500",
-                            status === "completed" ? "bg-green-600" : 
-                            status === "failed" ? "bg-red-600" : 
-                            "bg-yellow-600 animate-pulse"
+                            status === "completed" ? "bg-green-600" :
+                                status === "failed" ? "bg-red-600" :
+                                    "bg-yellow-600 animate-pulse"
                         )}>
-                            {status === "completed" ? "✅ READY TO DOWNLOAD" : 
-                             status === "failed" ? "FAILED" : 
-                             "🔥 GENERATING RAGEBAIT..."}
+                            {status === "completed" ? "✅ READY TO DOWNLOAD" :
+                                status === "failed" ? "FAILED" :
+                                    "🔥 GENERATING RAGEBAIT..."}
                         </Badge>
 
                         {result?.video_url ? (
@@ -175,13 +176,13 @@ export default function ResultPage() {
                             </div>
                         )}
                     </Card>
-                    
+
                     <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/10">
                         <div>
                             <div className="text-sm font-medium text-white">
-                                {status === "completed" ? `Complete Scene Extracted (${result?.duration?.toFixed(1)}s)` : 
-                                 status === "failed" ? "Generation Failed" :
-                                 "AI Processing..."}
+                                {status === "completed" ? `Complete Scene Extracted (${result?.duration?.toFixed(1)}s)` :
+                                    status === "failed" ? "Generation Failed" :
+                                        "AI Processing..."}
                             </div>
                             <div className="text-xs text-white/50">
                                 {result?.lens ? `Lens: ${result.lens}` : "Gemini 3 Flash + fal.ai TTS"}
@@ -200,11 +201,11 @@ export default function ResultPage() {
                 </div>
 
                 {/* Right: Meme & Commentary Log */}
-                <div className="lg:col-span-5 flex flex-col space-y-6">
+                <div className="lg:col-span-4 flex flex-col space-y-4">
 
                     {/* Generated Meme Section */}
-                    <div className="flex-1 min-h-[300px]">
-                        <Card className="h-full bg-white/5 border-white/10 p-4 flex flex-col">
+                    <div className="flex-none">
+                        <Card className="bg-white/5 border-white/10 p-3 flex flex-col">
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="font-bold font-oswald text-white tracking-wide flex items-center gap-2">
                                     <Image className="w-5 h-5 text-yellow-500" />
@@ -214,17 +215,17 @@ export default function ResultPage() {
                                     Nano Banana AI
                                 </Badge>
                             </div>
-                            <div className="flex-1 bg-black/40 rounded-lg overflow-hidden relative group flex items-center justify-center">
+                            <div className="aspect-square max-h-[250px] mx-auto bg-black/40 rounded-lg overflow-hidden relative group flex items-center justify-center">
                                 {result?.meme_url ? (
                                     <div className="relative w-full h-full">
-                                        <img 
-                                            src={result.meme_url} 
-                                            alt="Generated Meme" 
-                                            className="w-full h-full object-contain" 
+                                        <img
+                                            src={result.meme_url}
+                                            alt="Generated Meme"
+                                            className="w-full h-full object-contain"
                                         />
                                         <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                            <Button 
-                                                variant="secondary" 
+                                            <Button
+                                                variant="secondary"
                                                 onClick={handleRegenerateMeme}
                                                 disabled={isRegeneratingMeme}
                                             >
@@ -254,9 +255,9 @@ export default function ResultPage() {
                                 <div className="mt-4 p-3 bg-black/30 rounded-lg border border-white/10">
                                     <div className="flex items-center justify-between mb-2">
                                         <span className="text-xs text-white/50 uppercase tracking-wider">Social Caption</span>
-                                        <Button 
-                                            variant="ghost" 
-                                            size="sm" 
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
                                             className="h-6 px-2"
                                             onClick={handleCopyCaption}
                                         >
@@ -270,8 +271,8 @@ export default function ResultPage() {
                     </div>
 
                     {/* Roast Log (Transcript) */}
-                    <div className="h-[250px]">
-                        <Card className="h-full flex flex-col bg-white/5 border-white/10">
+                    <div className="h-[200px] flex-none">
+                        <Card className="h-full flex flex-col bg-white/5 border-white/10 overflow-hidden">
                             <div className="p-3 border-b border-white/10 flex justify-between items-center">
                                 <h3 className="text-sm font-semibold text-white/70">🎙️ Commentary Transcript</h3>
                                 {status === "processing" && (
@@ -298,6 +299,15 @@ export default function ResultPage() {
                             </ScrollArea>
                         </Card>
                     </div>
+                    {/* Parody Generator */}
+                    {status === "completed" && (
+                        <div className="mt-2">
+                            <ParodyGenerator
+                                videoId={result?.job_id || id}
+                                memeUrl={result?.meme_url}
+                            />
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

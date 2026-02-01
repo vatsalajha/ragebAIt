@@ -9,6 +9,7 @@ secret/
 !package.json
 !package-lock.json
 !tsconfig.json
+ragebait-486019-e622b48c2365.json
 
 videos/
 *.mp4
@@ -55,3 +56,5 @@ htmlcov/
 .pytest_cache/
 
 uv.lock
+
+vercel.json
